@@ -534,11 +534,40 @@ function copyCode(){
     const ops=[ins.o1,ins.o2].filter(Boolean).join(', ');
     return `${ins.mnem}${ops?' '+ops:''}${ins.cmt?'  ; '+ins.cmt:''}`;
   }).join('\n');
-  navigator.clipboard.writeText(txt).then(()=>{
-    const b=document.querySelector('.copy-btn');
-    b.textContent='✓ Copied!';
-    setTimeout(()=>b.textContent='⎘ Copy',1500);
-  });
+
+  const btn = document.querySelector('.copy-btn');
+  function onSuccess(){
+    btn.textContent='✓ Copied!';
+    btn.style.color='var(--green)';
+    btn.style.borderColor='var(--green)';
+    setTimeout(()=>{ btn.textContent='⎘ Copy'; btn.style.color=''; btn.style.borderColor=''; }, 1800);
+  }
+  function onFail(){
+    btn.textContent='✗ Gagal';
+    btn.style.color='var(--red)';
+    setTimeout(()=>{ btn.textContent='⎘ Copy'; btn.style.color=''; }, 1800);
+  }
+
+  // Modern clipboard API (HTTPS / localhost)
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(txt).then(onSuccess).catch(()=>fallback());
+  } else {
+    fallback();
+  }
+
+  function fallback(){
+    // Works on file:// and older browsers
+    const ta = document.createElement('textarea');
+    ta.value = txt;
+    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try {
+      const ok = document.execCommand('copy');
+      ok ? onSuccess() : onFail();
+    } catch(e){ onFail(); }
+    document.body.removeChild(ta);
+  }
 }
 
 // ─── EXECUTION ───────────────────────────────────────────────────────────────
