@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>8085 Logical Instruction Simulator</title>
+<style>
+:root {
+  --bg:      #0d0f1a;
+  --bg2:     #13162a;
+  --bg3:     #1c2040;
+  --bg4:     #242850;
+  --border:  #2e3460;
+  --accent:  #5b8af0;
+  --purple:  #a78bfa;
+  --green:   #4ade80;
+  --red:     #f87171;
+  --yellow:  #fbbf24;
+  --cyan:    #22d3ee;
+  --orange:  #fb923c;
+  --text:    #e2e8f0;
+  --text2:   #7c8db8;
+  --text3:   #4a5580;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+
+/* ── HEADER ── */
+header {
+  background: linear-gradient(135deg, #0d1b3e 0%, #1a1040 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px; display: flex; align-items: center; gap: 14px;
+}
+.logo { font-size: 22px; font-weight: 900; letter-spacing: -0.5px; }
+.logo span { color: var(--accent); }
+.subtitle { color: var(--text2); font-size: 12px; margin-top: 2px; }
+
+/* ── LAYOUT ── */
+.layout { display: grid; grid-template-columns: 420px 1fr; gap: 0; min-height: calc(100vh - 57px); }
+
+/* ── LEFT PANEL ── */
+.left-panel {
+  border-right: 1px solid var(--border);
+  background: var(--bg2);
+  display: flex; flex-direction: column; gap: 0;
+  overflow-y: auto;
+}
+
+/* ── RIGHT PANEL ── */
+.right-panel {
+  display: flex; flex-direction: column; gap: 0;
+  overflow-y: auto;
+}
+
+/* ── SECTION ── */
+.section { padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.sec-title {
+  font-size: 10px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .12em; color: var(--text2); margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.sec-title::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* ── OP SELECTOR ── */
+.op-groups { display: flex; flex-direction: column; gap: 10px; }
+.op-group-label { font-size: 11px; color: var(--text3); font-weight: 700; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .06em; }
+.op-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.op-btn {
+  padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px;
+  font-weight: 700; border: 2px solid var(--border);
+  background: var(--bg3); color: var(--text2);
+  transition: all .15s; font-family: 'Courier New', monospace;
+  letter-spacing: .04em;
+}
+.op-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--bg4); }
+.op-btn.selected { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 0 12px rgba(91,138,240,.3); }
+.op-btn.selected.op-and { background: #2563eb; border-color: #2563eb; }
+.op-btn.selected.op-or  { background: #7c3aed; border-color: #7c3aed; }
+.op-btn.selected.op-xor { background: #0891b2; border-color: #0891b2; }
+.op-btn.selected.op-not { background: #059669; border-color: #059669; }
+.op-btn.selected.op-cpi { background: #d97706; border-color: #d97706; }
+
+/* ── MODE TOGGLE ── */
+.mode-toggle { display: flex; background: var(--bg3); border-radius: 8px; border: 1px solid var(--border); overflow: hidden; }
+.mode-btn { flex: 1; padding: 8px; text-align: center; cursor: pointer; font-size: 12px; font-weight: 700; color: var(--text2); transition: all .15s; border: none; background: none; }
+.mode-btn.active { background: var(--bg4); color: var(--accent); }
+
+/* ── INPUTS ── */
+.input-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.input-label { font-size: 11px; color: var(--text2); font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.input-badge { background: var(--bg4); border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px; font-family: 'Courier New', monospace; color: var(--accent); font-size: 11px; }
+
+.val-input-wrap { display: flex; gap: 8px; align-items: stretch; }
+.val-field {
+  flex: 1; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); border-radius: 8px; padding: 10px 12px;
+  font-size: 15px; font-family: 'Courier New', monospace; font-weight: 700;
+  outline: none; transition: border-color .15s; text-transform: uppercase;
+}
+.val-field:focus { border-color: var(--accent); }
+.val-field.error { border-color: var(--red); }
+.val-hint { font-size: 11px; color: var(--text3); margin-top: 2px; font-family: 'Courier New', monospace; }
+
+.fmt-tabs { display: flex; gap: 4px; }
+.fmt-tab { padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 11px; font-weight: 700; border: 1px solid var(--border); background: var(--bg3); color: var(--text2); transition: all .15s; }
+.fmt-tab.active { background: var(--bg4); color: var(--cyan); border-color: var(--cyan); }
+
+/* register selector */
+.reg-select {
+  flex: 1; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--accent); border-radius: 8px; padding: 10px 12px;
+  font-size: 15px; font-family: 'Courier New', monospace; font-weight: 700;
+  outline: none; cursor: pointer; appearance: none;
+}
+.reg-select:focus { border-color: var(--accent); }
+
+/* ── GENERATE BTN ── */
+.btn-generate {
+  width: 100%; padding: 13px; border-radius: 10px; border: none; cursor: pointer;
+  font-size: 15px; font-weight: 800; letter-spacing: .03em;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%);
+  color: #fff; transition: all .2s; margin-top: 4px;
+  box-shadow: 0 4px 15px rgba(91,138,240,.2);
+}
+.btn-generate:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(91,138,240,.35); }
+.btn-generate:active { transform: translateY(0); }
+
+/* ── GENERATED CODE ── */
+.code-block {
+  background: #070910; border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px; font-family: 'Courier New', monospace; font-size: 13px;
+  line-height: 2; position: relative; overflow-x: auto;
+}
+.code-line { display: flex; gap: 12px; }
+.code-addr { color: var(--text3); min-width: 46px; user-select: none; }
+.code-mnem { color: var(--accent); font-weight: 700; min-width: 46px; }
+.code-operand { color: var(--yellow); min-width: 60px; }
+.code-comment { color: #384060; }
+.code-line.executing .code-mnem { color: var(--cyan); }
+.code-line.executing .code-operand { color: var(--cyan); }
+.code-line.done .code-mnem { color: var(--green); opacity: .6; }
+.copy-btn {
+  position: absolute; top: 10px; right: 10px;
+  background: var(--bg4); border: 1px solid var(--border); color: var(--text2);
+  padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 11px;
+  transition: all .15s;
+}
+.copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── STEPPER ── */
+.step-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.btn-step {
+  padding: 9px 20px; border-radius: 8px; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 700; transition: all .15s;
+}
+.btn-step.primary { background: var(--yellow); color: #000; }
+.btn-step.primary:hover { background: #fcd34d; }
+.btn-step.success { background: var(--green); color: #000; }
+.btn-step.success:hover { background: #6ee7a0; }
+.btn-step.neutral { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
+.btn-step.neutral:hover { background: var(--bg4); }
+.btn-step:disabled { opacity: .35; cursor: not-allowed; transform: none !important; }
+.step-info { margin-left: auto; font-size: 12px; color: var(--text2); }
+
+/* ── BIT VISUALIZATION ── */
+.bit-section { background: var(--bg2); }
+
+.bit-stage { padding: 20px; }
+.bit-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.bit-row-label { width: 52px; text-align: right; font-size: 12px; color: var(--text2); font-family: 'Courier New', monospace; font-weight: 700; flex-shrink: 0; }
+.bits-wrap { display: flex; gap: 3px; }
+.bit-cell {
+  width: 30px; height: 30px; border-radius: 5px; border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Courier New', monospace; font-size: 13px; font-weight: 700;
+  color: var(--text3); background: var(--bg3);
+  transition: all .3s;
+}
+.bit-cell.b1 { background: #1a2e5a; color: var(--cyan); border-color: #2563eb; }
+.bit-cell.b1.result { background: #143322; color: var(--green); border-color: #15803d; }
+.bit-cell.gap { width: 6px; background: none; border: none; }
+.bit-hex-val { width: 44px; font-family: 'Courier New', monospace; font-size: 13px; color: var(--accent); font-weight: 700; }
+.bit-dec-val { font-size: 11px; color: var(--text3); font-family: 'Courier New', monospace; }
+.op-divider { display: flex; align-items: center; gap: 10px; margin: 4px 0 4px 62px; }
+.op-symbol { font-size: 18px; font-weight: 900; color: var(--purple); width: 30px; text-align: center; }
+.divider-line { flex: 1; height: 1px; background: var(--border); }
+.bit-idx { display: flex; gap: 3px; margin-left: 62px; }
+.bit-idx-n { width: 30px; text-align: center; font-size: 9px; color: var(--text3); font-family: 'Courier New', monospace; }
+.bit-idx-n.gap { width: 6px; }
+
+/* ── RESULT BOX ── */
+.result-box {
+  margin: 0 20px 20px; padding: 16px 20px; border-radius: 10px;
+  background: var(--bg3); border: 1px solid var(--border);
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+}
+.res-item { text-align: center; }
+.res-label { font-size: 10px; color: var(--text2); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+.res-val { font-size: 22px; font-weight: 900; font-family: 'Courier New', monospace; color: var(--accent); }
+.res-bin { font-size: 11px; color: var(--text3); font-family: 'Courier New', monospace; margin-top: 2px; }
+
+/* ── FLAGS PANEL ── */
+.flags-row { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 20px 20px; }
+.flag-card {
+  flex: 1; min-width: 60px; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 8px; text-align: center; transition: all .3s;
+}
+.flag-card.set { background: #0f2e1a; border-color: var(--green); }
+.flag-card.set .flag-val { color: var(--green); }
+.flag-name { font-size: 10px; color: var(--text2); font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.flag-full { font-size: 9px; color: var(--text3); margin-top: 1px; }
+.flag-val { font-size: 24px; font-weight: 900; font-family: 'Courier New', monospace; color: var(--text3); margin-top: 4px; }
+
+/* ── REGISTERS ROW ── */
+.regs-row { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 20px 20px; }
+.reg-card {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 12px; min-width: 72px; text-align: center; transition: all .3s;
+}
+.reg-card.changed { background: #0f2e1a; border-color: var(--green); }
+.reg-n { font-size: 10px; color: var(--text2); font-weight: 800; }
+.reg-v { font-size: 16px; font-weight: 900; font-family: 'Courier New', monospace; color: var(--accent); }
+
+/* ── STEP LOG ── */
+.step-log { margin: 0 20px 20px; background: #05060e; border: 1px solid var(--border); border-radius: 10px; padding: 12px; max-height: 140px; overflow-y: auto; }
+.log-entry { font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.8; color: var(--text2); }
+.log-entry.active { color: var(--cyan); }
+.log-entry.done { color: var(--text3); }
+.log-entry .log-result { color: var(--green); }
+
+/* ── EMPTY STATE ── */
+.empty-state { padding: 40px 20px; text-align: center; color: var(--text3); }
+.empty-state .big { font-size: 48px; margin-bottom: 12px; }
+.empty-state p { font-size: 13px; line-height: 1.7; }
+
+/* ── CPI EXPLAIN ── */
+.cpi-explain {
+  margin: 0 20px 16px; padding: 12px 16px; background: var(--bg3);
+  border: 1px solid var(--border); border-radius: 8px; font-size: 12px; color: var(--text2); line-height: 1.7;
+}
+.cpi-explain strong { color: var(--yellow); }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">⚙ 8085 <span>Logical</span> Simulator</div>
+    <div class="subtitle">Pilih operasi · masukkan nilai · generate kode · simulasi step-by-step</div>
+  </div>
+</header>
+
+<div class="layout">
+
+<!-- ══════════════ LEFT PANEL ══════════════ -->
+<div class="left-panel">
+
+  <!-- 1. PILIH OPERASI -->
+  <div class="section">
+    <div class="sec-title">1 · Pilih Operasi Logika</div>
+    <div class="op-groups">
+      <div>
+        <div class="op-group-label">AND</div>
+        <div class="op-btns">
+          <div class="op-btn op-and" data-op="ANA" onclick="selectOp(this)">ANA</div>
+          <div class="op-btn op-and" data-op="ANI" onclick="selectOp(this)">ANI</div>
+        </div>
+      </div>
+      <div>
+        <div class="op-group-label">OR</div>
+        <div class="op-btns">
+          <div class="op-btn op-or" data-op="ORA" onclick="selectOp(this)">ORA</div>
+          <div class="op-btn op-or" data-op="ORI" onclick="selectOp(this)">ORI</div>
+        </div>
+      </div>
+      <div>
+        <div class="op-group-label">XOR</div>
+        <div class="op-btns">
+          <div class="op-btn op-xor" data-op="XRA" onclick="selectOp(this)">XRA</div>
+          <div class="op-btn op-xor" data-op="XRI" onclick="selectOp(this)">XRI</div>
+        </div>
+      </div>
+      <div>
+        <div class="op-group-label">NOT / Komplemen</div>
+        <div class="op-btns">
+          <div class="op-btn op-not" data-op="CMA" onclick="selectOp(this)">CMA</div>
+        </div>
+      </div>
+      <div>
+        <div class="op-group-label">Compare</div>
+        <div class="op-btns">
+          <div class="op-btn op-cpi" data-op="CPI" onclick="selectOp(this)">CPI</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. INPUT NILAI -->
+  <div class="section" id="inputSection">
+    <div class="sec-title">2 · Input Nilai</div>
+    <div id="inputArea">
+      <div class="empty-state" style="padding:20px 0;">
+        <p>Pilih operasi di atas terlebih dahulu.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. GENERATE -->
+  <div class="section">
+    <div class="sec-title">3 · Generate &amp; Simulate</div>
+    <button class="btn-generate" id="btnGenerate" onclick="generate()">
+      ⚡ Generate Kode &amp; Simulasikan
+    </button>
+  </div>
+
+  <!-- 4. GENERATED CODE -->
+  <div class="section" id="codeSection" style="display:none;">
+    <div class="sec-title">4 · Kode Assembly 8085</div>
+    <div class="code-block" id="codeBlock">
+      <button class="copy-btn" onclick="copyCode()">⎘ Copy</button>
+      <div id="codeLines"></div>
+    </div>
+    <div style="margin-top:12px;" class="step-controls">
+      <button class="btn-step primary" id="btnStep" onclick="stepExec()">⏭ Step</button>
+      <button class="btn-step success" id="btnRunAll" onclick="runAll()">▶ Run Semua</button>
+      <button class="btn-step neutral" onclick="resetExec()">↺ Reset</button>
+      <span class="step-info" id="stepInfo">Langkah 0 / 0</span>
+    </div>
+  </div>
+
+</div><!-- /left-panel -->
+
+
+<!-- ══════════════ RIGHT PANEL ══════════════ -->
+<div class="right-panel">
+
+  <!-- EMPTY STATE -->
+  <div id="emptyRight" class="empty-state" style="padding:80px 20px;">
+    <div class="big">🔬</div>
+    <p>Pilih operasi, masukkan nilai, lalu tekan<br><strong style="color:var(--accent)">Generate Kode &amp; Simulasikan</strong><br>untuk melihat visualisasi bit dan hasil eksekusi.</p>
+  </div>
+
+  <!-- RESULT AREA (hidden until generate) -->
+  <div id="resultArea" style="display:none;">
+
+    <!-- BIT VIZ -->
+    <div class="section bit-section">
+      <div class="sec-title" style="padding:20px 20px 0;">Visualisasi Bit</div>
+      <div class="bit-stage" id="bitStage">
+        <!-- rendered by JS -->
+      </div>
+    </div>
+
+    <!-- RESULT BOX -->
+    <div class="result-box" id="resultBox">
+      <div class="res-item">
+        <div class="res-label">Operand A (masuk)</div>
+        <div class="res-val" id="resA">--</div>
+        <div class="res-bin" id="resABin">----  ----</div>
+      </div>
+      <div class="res-item" id="resBItem">
+        <div class="res-label">Operand B</div>
+        <div class="res-val" id="resB">--</div>
+        <div class="res-bin" id="resBBin">----  ----</div>
+      </div>
+      <div class="res-item">
+        <div class="res-label">Hasil (A out)</div>
+        <div class="res-val" id="resOut" style="color:var(--green);">--</div>
+        <div class="res-bin" id="resOutBin">----  ----</div>
+      </div>
+    </div>
+
+    <!-- CPI EXPLAIN -->
+    <div class="cpi-explain" id="cpiExplain" style="display:none;"></div>
+
+    <!-- FLAGS -->
+    <div class="section" style="padding-bottom:0;">
+      <div class="sec-title">Flags</div>
+    </div>
+    <div class="flags-row" id="flagsRow">
+      <!-- rendered by JS -->
+    </div>
+
+    <!-- REGISTERS -->
+    <div class="section" style="padding-bottom:0;">
+      <div class="sec-title">Registers</div>
+    </div>
+    <div class="regs-row" id="regsRow"><!-- rendered by JS --></div>
+
+    <!-- LOG -->
+    <div class="section" style="padding-bottom:0;">
+      <div class="sec-title">Execution Log</div>
+    </div>
+    <div class="step-log" id="stepLog"></div>
+
+  </div><!-- /resultArea -->
+
+</div><!-- /right-panel -->
+</div><!-- /layout -->
+
+<script>
+// ─── STATE ─────────────────────────────────────────────────────────────────
+let currentOp = null;
+let fmtA = 'HEX', fmtB = 'HEX';
+let instructions = [];
+let execStep = 0;
+let regs = {}, flags = {}, memory = {};
+let prevRegs = {}, prevFlags = {};
+let runTimer = null;
+
+// ─── OP SELECTION ──────────────────────────────────────────────────────────
+function selectOp(el) {
+  document.querySelectorAll('.op-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  currentOp = el.dataset.op;
+  renderInputArea();
+  document.getElementById('codeSection').style.display = 'none';
+  document.getElementById('resultArea').style.display = 'none';
+  document.getElementById('emptyRight').style.display = 'block';
+}
+
+const OP_INFO = {
+  ANA: { sym:'AND', desc:'A ← A AND r', needsB:true, isReg:true  },
+  ANI: { sym:'AND', desc:'A ← A AND data', needsB:true, isReg:false },
+  ORA: { sym:'OR',  desc:'A ← A OR r',  needsB:true, isReg:true  },
+  ORI: { sym:'OR',  desc:'A ← A OR data', needsB:true, isReg:false },
+  XRA: { sym:'XOR', desc:'A ← A XOR r', needsB:true, isReg:true  },
+  XRI: { sym:'XOR', desc:'A ← A XOR data', needsB:true, isReg:false },
+  CMA: { sym:'NOT', desc:'A ← NOT A',   needsB:false, isReg:false },
+  CPI: { sym:'CMP', desc:'Flags ← A − data (A tidak berubah)', needsB:true, isReg:false },
+};
+
+function renderInputArea() {
+  const info = OP_INFO[currentOp];
+  const container = document.getElementById('inputArea');
+
+  let bLabel = info.isReg ? 'Register (Operand B)' : 'Data Langsung (Operand B)';
+  let html = `
+    <!-- Operand A -->
+    <div class="input-row">
+      <div class="input-label">
+        <span>Register <span class="input-badge">A</span> — Akumulator</span>
+        <div class="fmt-tabs" id="fmtTabsA">
+          <div class="fmt-tab active" onclick="setFmt('A','HEX',this)">HEX</div>
+          <div class="fmt-tab" onclick="setFmt('A','BIN',this)">BIN</div>
+          <div class="fmt-tab" onclick="setFmt('A','DEC',this)">DEC</div>
+        </div>
+      </div>
+      <div class="val-input-wrap">
+        <input class="val-field" id="inputA" type="text" placeholder="${placeholderFor('HEX')}" oninput="syncVal('A')" value="55">
+      </div>
+      <div class="val-hint" id="hintA">= 0101 0101 = 85₁₀</div>
+    </div>`;
+
+  if (info.needsB) {
+    if (info.isReg) {
+      html += `
+      <div class="input-row">
+        <div class="input-label">
+          <span>Register <span class="input-badge" id="regBadge">B</span> — pilih register</span>
+        </div>
+        <div class="val-input-wrap">
+          <select class="reg-select" id="regSelect" onchange="updateRegBadge()">
+            <option value="B">B</option><option value="C">C</option>
+            <option value="D">D</option><option value="E">E</option>
+            <option value="H">H</option><option value="L">L</option>
+          </select>
+        </div>
+      </div>
+      <div class="input-row">
+        <div class="input-label">
+          <span>Nilai <span class="input-badge" id="regValBadge">B</span></span>
+          <div class="fmt-tabs" id="fmtTabsB">
+            <div class="fmt-tab active" onclick="setFmt('B','HEX',this)">HEX</div>
+            <div class="fmt-tab" onclick="setFmt('B','BIN',this)">BIN</div>
+            <div class="fmt-tab" onclick="setFmt('B','DEC',this)">DEC</div>
+          </div>
+        </div>
+        <div class="val-input-wrap">
+          <input class="val-field" id="inputB" type="text" placeholder="${placeholderFor('HEX')}" oninput="syncVal('B')" value="0F">
+        </div>
+        <div class="val-hint" id="hintB">= 0000 1111 = 15₁₀</div>
+      </div>`;
+    } else {
+      html += `
+      <div class="input-row">
+        <div class="input-label">
+          <span>Data Langsung <span class="input-badge">imm8</span></span>
+          <div class="fmt-tabs" id="fmtTabsB">
+            <div class="fmt-tab active" onclick="setFmt('B','HEX',this)">HEX</div>
+            <div class="fmt-tab" onclick="setFmt('B','BIN',this)">BIN</div>
+            <div class="fmt-tab" onclick="setFmt('B','DEC',this)">DEC</div>
+          </div>
+        </div>
+        <div class="val-input-wrap">
+          <input class="val-field" id="inputB" type="text" placeholder="${placeholderFor('HEX')}" oninput="syncVal('B')" value="0F">
+        </div>
+        <div class="val-hint" id="hintB">= 0000 1111 = 15₁₀</div>
+      </div>`;
+    }
+  }
+
+  html += `
+    <div style="margin-top:6px; padding:10px 14px; background:var(--bg4); border-radius:8px; border:1px solid var(--border);">
+      <span style="font-size:11px; color:var(--text2);">Instruksi: </span>
+      <span style="font-family:'Courier New',monospace; color:var(--accent); font-weight:700;">${currentOp}</span>
+      <span style="font-size:11px; color:var(--text3); margin-left:8px;">${info.desc}</span>
+    </div>`;
+
+  container.innerHTML = html;
+  syncVal('A');
+  if (info.needsB) syncVal('B');
+}
+
+function updateRegBadge() {
+  const r = document.getElementById('regSelect')?.value;
+  document.getElementById('regBadge').textContent = r;
+  document.getElementById('regValBadge').textContent = r;
+}
+
+function placeholderFor(fmt) {
+  return { HEX:'XX (mis: 5A)', BIN:'00000000', DEC:'0–255' }[fmt];
+}
+
+function setFmt(which, fmt, el) {
+  if (which==='A') {
+    fmtA = fmt;
+    document.querySelectorAll('#fmtTabsA .fmt-tab').forEach(t=>t.classList.remove('active'));
+  } else {
+    fmtB = fmt;
+    document.querySelectorAll('#fmtTabsB .fmt-tab').forEach(t=>t.classList.remove('active'));
+  }
+  el.classList.add('active');
+  const fieldId = which==='A' ? 'inputA' : 'inputB';
+  const field = document.getElementById(fieldId);
+  if (field) {
+    // convert existing value
+    const cur = parseField(field.value, which==='A' ? (fmt==='HEX'?'BIN':fmtA) : (fmt==='HEX'?'BIN':fmtB));
+    if (cur !== null) field.value = toFmt(cur, fmt);
+    field.placeholder = placeholderFor(fmt);
+    syncVal(which);
+  }
+}
+
+function toFmt(val, fmt) {
+  if (fmt==='HEX') return val.toString(16).toUpperCase().padStart(2,'0');
+  if (fmt==='BIN') return val.toString(2).padStart(8,'0');
+  if (fmt==='DEC') return val.toString(10);
+}
+
+function parseField(str, fmt) {
+  str = str.trim().replace(/\s+/g,'');
+  if (!str) return null;
+  let n;
+  if (fmt==='HEX') n = parseInt(str.replace(/H$/i,''), 16);
+  else if (fmt==='BIN') n = parseInt(str, 2);
+  else n = parseInt(str, 10);
+  if (isNaN(n) || n < 0 || n > 255) return null;
+  return n;
+}
+
+function syncVal(which) {
+  const fmt = which==='A' ? fmtA : fmtB;
+  const field = document.getElementById(which==='A'?'inputA':'inputB');
+  const hint = document.getElementById(which==='A'?'hintA':'hintB');
+  if (!field || !hint) return;
+  const val = parseField(field.value, fmt);
+  if (val === null) {
+    field.classList.add('error');
+    hint.textContent = '⚠ nilai tidak valid';
+    hint.style.color = 'var(--red)';
+  } else {
+    field.classList.remove('error');
+    const binStr = val.toString(2).padStart(8,'0');
+    hint.textContent = `= ${binStr.slice(0,4)} ${binStr.slice(4)} = ${val}₁₀ = ${val.toString(16).toUpperCase()}H`;
+    hint.style.color = 'var(--text3)';
+  }
+}
+
+// ─── GENERATE ──────────────────────────────────────────────────────────────
+function getValA() {
+  const f = document.getElementById('inputA');
+  return f ? parseField(f.value, fmtA) : null;
+}
+function getValB() {
+  const f = document.getElementById('inputB');
+  return f ? parseField(f.value, fmtB) : null;
+}
+function getRegB() {
+  const s = document.getElementById('regSelect');
+  return s ? s.value : 'B';
+}
+
+function generate() {
+  if (!currentOp) { alert('Pilih operasi dulu!'); return; }
+  const info = OP_INFO[currentOp];
+  const valA = getValA();
+  if (valA === null) { alert('Nilai A tidak valid!'); return; }
+  let valB = null;
+  if (info.needsB) {
+    valB = getValB();
+    if (valB === null) { alert('Nilai B tidak valid!'); return; }
+  }
+  const regB = info.isReg ? getRegB() : null;
+
+  // Build instructions list
+  instructions = buildInstructions(currentOp, valA, valB, regB);
+  execStep = 0;
+
+  // Init registers
+  regs = { A:0, B:0, C:0, D:0, E:0, H:0, L:0 };
+  flags = { S:0, Z:0, AC:0, P:0, CY:0 };
+  prevRegs = {...regs};
+  prevFlags = {...flags};
+
+  renderCodeBlock();
+  document.getElementById('codeSection').style.display = 'block';
+  document.getElementById('emptyRight').style.display = 'none';
+  document.getElementById('resultArea').style.display = 'block';
+  renderBitStage(null, currentOp);
+  renderFlags();
+  renderRegs();
+  renderResultBox(null, null, null);
+  document.getElementById('stepLog').innerHTML = '';
+  document.getElementById('stepInfo').textContent = `Langkah 0 / ${instructions.length}`;
+  document.getElementById('cpiExplain').style.display = 'none';
+}
+
+function buildInstructions(op, valA, valB, regB) {
+  const info = OP_INFO[op];
+  const hexA = toFmt(valA,'HEX') + 'H';
+  let list = [];
+
+  // Always: MVI A, valA
+  list.push({ mnem:'MVI', op1:'A', op2:hexA, comment:`Load ${hexA} ke Akumulator`, valA, valB:null });
+
+  if (info.needsB && info.isReg) {
+    const hB = toFmt(valB,'HEX')+'H';
+    list.push({ mnem:'MVI', op1:regB, op2:hB, comment:`Load ${hB} ke Register ${regB}`, valA:null, valB });
+    list.push({ mnem:op, op1:regB, op2:null, comment:`A = A ${info.sym} ${regB}`, valA, valB, regB });
+  } else if (info.needsB) {
+    const hB = toFmt(valB,'HEX')+'H';
+    list.push({ mnem:op, op1:hB, op2:null, comment:`A = A ${info.sym} ${hB}`, valA, valB });
+  } else {
+    list.push({ mnem:op, op1:null, op2:null, comment:`A = NOT A`, valA });
+  }
+
+  list.push({ mnem:'STA', op1:'2000H', op2:null, comment:'Simpan hasil ke memori 2000H', valA:null, valB:null });
+  list.push({ mnem:'HLT', op1:null, op2:null, comment:'Program selesai', valA:null, valB:null });
+  return list;
+}
+
+// ─── CODE BLOCK ────────────────────────────────────────────────────────────
+const CODE_BASE = 0x1800;
+
+function renderCodeBlock() {
+  const el = document.getElementById('codeLines');
+  let addr = CODE_BASE;
+  el.innerHTML = instructions.map((ins, i) => {
+    const cls = i < execStep ? 'done' : i === execStep ? 'executing' : '';
+    const addrStr = addr.toString(16).toUpperCase().padStart(4,'0') + 'H';
+    const ops = [ins.op1, ins.op2].filter(Boolean).join(', ');
+    const arrow = i === execStep ? '►' : ' ';
+    const line = `<div class="code-line ${cls}" id="cl-${i}">
+      <span style="color:var(--text3);min-width:16px;">${arrow}</span>
+      <span class="code-addr">${addrStr}</span>
+      <span class="code-mnem">${ins.mnem}</span>
+      <span class="code-operand">${ops}</span>
+      <span class="code-comment">${ins.comment ? '; '+ins.comment : ''}</span>
+    </div>`;
+    addr += instrSize(ins.mnem);
+    return line;
+  }).join('');
+  document.getElementById('stepInfo').textContent = `Langkah ${execStep} / ${instructions.length}`;
+}
+
+function instrSize(mnem) {
+  if (['CMA','HLT','NOP','ANA','ORA','XRA'].some(m=>mnem.startsWith(m)&&mnem.length<=3)) return 1;
+  if (['MVI','ANI','ORI','XRI','CPI','ADI'].includes(mnem)) return 2;
+  if (['STA','LDA','JMP','JZ','JNZ','LXI'].includes(mnem)) return 3;
+  return 1;
+}
+
+function copyCode() {
+  const lines = instructions.map(ins => {
+    const ops = [ins.op1, ins.op2].filter(Boolean).join(', ');
+    const c = ins.comment ? '  ; '+ins.comment : '';
+    return `${ins.mnem}${ops?' '+ops:''}${c}`;
+  }).join('\n');
+  navigator.clipboard.writeText(lines).then(()=>{ const b=document.querySelector('.copy-btn'); b.textContent='✓ Copied!'; setTimeout(()=>b.textContent='⎘ Copy',1500); });
+}
+
+// ─── EXECUTION ─────────────────────────────────────────────────────────────
+function stepExec() {
+  if (execStep >= instructions.length) return;
+  prevRegs = {...regs};
+  prevFlags = {...flags};
+
+  const ins = instructions[execStep];
+  const logEl = document.getElementById('stepLog');
+
+  let logText = `[${execStep+1}] ${ins.mnem}${ins.op1?' '+ins.op1:''}${ins.op2?','+ins.op2:''}`;
+  let vizData = null;
+
+  switch(ins.mnem) {
+    case 'MVI': {
+      const reg = ins.op1;
+      const val = parseHexStr(ins.op2);
+      regs[reg] = val;
+      logText += ` → ${reg} = ${hexB(val)}`;
+      break;
+    }
+    case 'ANA': {
+      const b = regs[ins.op1] ?? 0;
+      const result = (regs.A & b) & 0xFF;
+      vizData = { op:'AND', a:regs.A, b, result };
+      setFlagsLogic(result, true);
+      regs.A = result;
+      logText += ` → ${hexB(vizData.a)} AND ${hexB(b)} = ${hexB(result)}`;
+      break;
+    }
+    case 'ANI': {
+      const b = parseHexStr(ins.op1);
+      const result = (regs.A & b) & 0xFF;
+      vizData = { op:'AND', a:regs.A, b, result };
+      setFlagsLogic(result, false);
+      regs.A = result;
+      logText += ` → ${hexB(vizData.a)} AND ${hexB(b)} = ${hexB(result)}`;
+      break;
+    }
+    case 'ORA': {
+      const b = regs[ins.op1] ?? 0;
+      const result = (regs.A | b) & 0xFF;
+      vizData = { op:'OR', a:regs.A, b, result };
+      setFlagsLogic(result, false);
+      regs.A = result;
+      logText += ` → ${hexB(vizData.a)} OR ${hexB(b)} = ${hexB(result)}`;
+      break;
+    }
+    case 'ORI': {
+      const b = parseHexStr(ins.op1);
+      const result = (regs.A | b) & 0xFF;
+      vizData = { op:'OR', a:regs.A, b, result };
+      setFlagsLogic(result, false);
+      regs.A = result;
+      logText += ` → ${hexB(vizData.a)} OR ${hexB(b)} = ${hexB(result)}`;
+      break;
+    }
+    case 'XRA': {
+      const b = regs[ins.op1] ?? 0;
+      const result = (regs.A ^ b) & 0xFF;
+      vizData = { op:'XOR', a:regs.A, b, result };
+      setFlagsLogic(result, false);
+      regs.A = result;
+      logText += ` → ${hexB(vizData.a)} XOR ${hexB(b)} = ${hexB(result)}`;
+      break;
+    }
+    case 'XRI': {
+      const b = parseHexStr(ins.op1);
+      const result = (regs.A ^ b) & 0xFF;
+      vizData = { op:'XOR', a:regs.A, b, result };
+      setFlagsLogic(result, false);
+      regs.A = result;
+      logText += ` → ${hexB(vizData.a)} XOR ${hexB(b)} = ${hexB(result)}`;
+      break;
+    }
+    case 'CMA': {
+      const result = (~regs.A) & 0xFF;
+      vizData = { op:'NOT', a:regs.A, result };
+      regs.A = result;
+      logText += ` → NOT ${hexB(vizData.a)} = ${hexB(result)}`;
+      break;
+    }
+    case 'CPI': {
+      const b = parseHexStr(ins.op1);
+      const diff = (regs.A - b) & 0xFF;
+      flags.Z  = regs.A === b ? 1 : 0;
+      flags.CY = regs.A < b ? 1 : 0;
+      flags.S  = (diff & 0x80) ? 1 : 0;
+      flags.P  = parity(diff);
+      flags.AC = (regs.A & 0xF) < (b & 0xF) ? 1 : 0;
+      vizData = { op:'CPI', a:regs.A, b, result:diff };
+      logText += ` → A(${hexB(regs.A)}) − ${hexB(b)} = ${hexB(diff)} | Z=${flags.Z} CY=${flags.CY}`;
+      // update CPI explain
+      const cpiEl = document.getElementById('cpiExplain');
+      let msg;
+      if (flags.Z) msg = `<strong>A = Data</strong> (${hexB(regs.A)} = ${hexB(b)}) → Flag Z=1`;
+      else if (flags.CY) msg = `<strong>A &lt; Data</strong> (${hexB(regs.A)} &lt; ${hexB(b)}) → Flag CY=1, Z=0`;
+      else msg = `<strong>A &gt; Data</strong> (${hexB(regs.A)} &gt; ${hexB(b)}) → Flag CY=0, Z=0`;
+      cpiEl.innerHTML = `📌 Hasil Perbandingan CPI: ${msg}<br>Akumulator A <strong>tidak berubah</strong>. Hanya flag yang diset.`;
+      cpiEl.style.display = 'block';
+      break;
+    }
+    case 'STA': {
+      memory[0x2000] = regs.A;
+      logText += ` → [2000H] ← ${hexB(regs.A)}`;
+      break;
+    }
+    case 'HLT': {
+      logText += ' ← HALTED';
+      break;
+    }
+  }
+
+  // add to log
+  const p = document.createElement('div');
+  p.className = 'log-entry active';
+  p.textContent = logText;
+  logEl.appendChild(p);
+  // grey previous
+  logEl.querySelectorAll('.log-entry.active').forEach(e=>{ if(e!==p) e.classList.replace('active','done'); });
+  logEl.scrollTop = logEl.scrollHeight;
+
+  if (vizData) renderBitStage(vizData, currentOp);
+  renderFlags();
+  renderRegs();
+  if (vizData) renderResultBox(vizData.a ?? null, vizData.b ?? null, vizData.result ?? null);
+
+  execStep++;
+  renderCodeBlock();
+  if (execStep >= instructions.length) {
+    document.getElementById('btnStep').disabled = true;
+    document.getElementById('btnRunAll').disabled = true;
+  }
+}
+
+function runAll() {
+  while (execStep < instructions.length) stepExec();
+}
+
+function resetExec() {
+  if (runTimer) { clearInterval(runTimer); runTimer=null; }
+  execStep = 0;
+  regs = { A:0, B:0, C:0, D:0, E:0, H:0, L:0 };
+  flags = { S:0, Z:0, AC:0, P:0, CY:0 };
+  memory = {};
+  renderCodeBlock();
+  renderBitStage(null, currentOp);
+  renderFlags();
+  renderRegs();
+  renderResultBox(null,null,null);
+  document.getElementById('stepLog').innerHTML = '';
+  document.getElementById('cpiExplain').style.display = 'none';
+  document.getElementById('btnStep').disabled = false;
+  document.getElementById('btnRunAll').disabled = false;
+}
+
+// ─── FLAGS ─────────────────────────────────────────────────────────────────
+function setFlagsLogic(r, acSet) {
+  flags.Z  = r===0 ? 1 : 0;
+  flags.S  = (r&0x80) ? 1 : 0;
+  flags.P  = parity(r);
+  flags.CY = 0;
+  flags.AC = acSet ? 1 : 0;
+}
+function parity(n) { let c=0; for(let i=0;i<8;i++) if((n>>i)&1) c++; return c%2===0?1:0; }
+
+// ─── RENDER FLAGS ──────────────────────────────────────────────────────────
+function renderFlags() {
+  const el = document.getElementById('flagsRow');
+  const defs = [
+    { k:'S',  full:'Sign'   },
+    { k:'Z',  full:'Zero'   },
+    { k:'AC', full:'Aux Carry' },
+    { k:'P',  full:'Parity' },
+    { k:'CY', full:'Carry'  },
+  ];
+  el.innerHTML = defs.map(d => `<div class="flag-card ${flags[d.k]?'set':''}">
+    <div class="flag-name">${d.k}</div>
+    <div class="flag-full">${d.full}</div>
+    <div class="flag-val">${flags[d.k]}</div>
+  </div>`).join('');
+}
+
+// ─── RENDER REGS ───────────────────────────────────────────────────────────
+function renderRegs() {
+  const el = document.getElementById('regsRow');
+  el.innerHTML = Object.keys(regs).map(r => `<div class="reg-card ${regs[r]!==prevRegs[r]?'changed':''}">
+    <div class="reg-n">${r}</div>
+    <div class="reg-v">${hexB(regs[r])}</div>
+  </div>`).join('');
+}
+
+// ─── BIT STAGE ─────────────────────────────────────────────────────────────
+function renderBitStage(data, op) {
+  const el = document.getElementById('bitStage');
+  if (!data) {
+    el.innerHTML = `<div style="color:var(--text3);font-size:12px;padding:8px 0;">Eksekusi instruksi logika untuk melihat visualisasi bit...</div>`;
+    return;
+  }
+
+  function makeBitRow(val, labelStr, resultClass='') {
+    const bits = Array.from({length:8},(_,i)=>{
+      const b = (val>>(7-i))&1;
+      const gap = i===4 ? '<div class="bit-cell gap"></div>' : '';
+      return gap + `<div class="bit-cell ${b?'b1':''} ${resultClass}">${b}</div>`;
+    }).join('');
+    return `<div class="bit-row">
+      <div class="bit-row-label">${labelStr}</div>
+      <div class="bits-wrap">${bits}</div>
+      <div class="bit-hex-val">${hexB(val)}</div>
+      <div class="bit-dec-val">${val}</div>
+    </div>`;
+  }
+
+  const indices = `<div class="bit-idx">${Array.from({length:8},(_,i)=>{
+    const n = 7-i;
+    return (i===4?'<div class="bit-idx-n gap"></div>':'') + `<div class="bit-idx-n">${n}</div>`;
+  }).join('')}</div>`;
+
+  let html = indices;
+
+  if (data.op === 'NOT') {
+    html += makeBitRow(data.a, 'A (in)');
+    html += `<div class="op-divider"><div class="op-symbol">NOT</div><div class="divider-line"></div></div>`;
+    html += makeBitRow(data.result, 'A (out)', 'result');
+  } else if (data.op === 'CPI') {
+    html += makeBitRow(data.a, 'A');
+    html += `<div class="op-divider"><div class="op-symbol">−</div><div class="divider-line"></div></div>`;
+    html += makeBitRow(data.b, 'data');
+    html += `<div class="op-divider"><div class="op-symbol">=</div><div class="divider-line"></div></div>`;
+    html += makeBitRow(data.result, 'diff', 'result');
+  } else {
+    html += makeBitRow(data.a, 'A');
+    const sym = {AND:'AND',OR:'OR',XOR:'XOR'}[data.op];
+    html += `<div class="op-divider"><div class="op-symbol">${sym}</div><div class="divider-line"></div></div>`;
+    html += makeBitRow(data.b, 'op');
+    html += `<div class="op-divider"><div class="op-symbol">=</div><div class="divider-line"></div></div>`;
+    html += makeBitRow(data.result, 'A (out)', 'result');
+  }
+
+  el.innerHTML = html;
+}
+
+// ─── RESULT BOX ────────────────────────────────────────────────────────────
+function renderResultBox(a, b, out) {
+  const fmtVal = v => v===null ? '--' : hexB(v);
+  const fmtBin = v => v===null ? '---- ----' : v.toString(2).padStart(8,'0').slice(0,4)+' '+v.toString(2).padStart(8,'0').slice(4);
+  document.getElementById('resA').textContent = fmtVal(a);
+  document.getElementById('resABin').textContent = fmtBin(a);
+  if (currentOp === 'CMA') {
+    document.getElementById('resBItem').style.display = 'none';
+  } else {
+    document.getElementById('resBItem').style.display = '';
+    document.getElementById('resB').textContent = fmtVal(b);
+    document.getElementById('resBBin').textContent = fmtBin(b);
+  }
+  document.getElementById('resOut').textContent = fmtVal(out);
+  document.getElementById('resOutBin').textContent = fmtBin(out);
+}
+
+// ─── HELPERS ───────────────────────────────────────────────────────────────
+function hexB(n) { return (n??0).toString(16).toUpperCase().padStart(2,'0')+'H'; }
+function parseHexStr(s) {
+  if (!s) return 0;
+  return parseInt(s.replace(/H$/i,''), 16) || 0;
+}
+</script>
+</body>
+</html>
